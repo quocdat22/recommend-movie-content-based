@@ -150,11 +150,28 @@ def update_movies():
             # Reload the movies data after successful fetch
             global movies_df, tfidf_matrix, cosine_sim
             
-            # Load updated movies data from Supabase
+            # Load updated movies data from Supabase with pagination
             print("Loading updated movies from Supabase...")
-            movies_response = supabase.table('movies').select('*').execute()
-            if movies_response.data:
-                movies_df = pd.DataFrame(movies_response.data)
+            all_movies = []
+            page_size = 1000
+            start = 0
+            
+            while True:
+                movies_response = supabase.table('movies').select('*').range(start, start + page_size - 1).execute()
+                if not movies_response.data:
+                    break
+                    
+                all_movies.extend(movies_response.data)
+                print(f"Loaded {len(movies_response.data)} movies (total: {len(all_movies)})")
+                
+                # If we got less than page_size records, we've reached the end
+                if len(movies_response.data) < page_size:
+                    break
+                    
+                start += page_size
+            
+            if all_movies:
+                movies_df = pd.DataFrame(all_movies)
                 
                 # Save updated movies to CSV for backup
                 movies_df.to_csv('notebooks/movies_df.csv', index=False)
