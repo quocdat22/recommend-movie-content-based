@@ -63,4 +63,39 @@ def recommend_user_collaborative(user_id: str, top_k: int = 10):
     recommended = recommend_movies_for_user(user_id, user_item_matrix, user_sim_df, N=5, top_k=top_k)
     return recommended
 
+# --- Endpoint to update movie data ---
+@app.post("/update-movies")
+def update_movies():
+    """
+    Endpoint to trigger the fetch_new_movies function on Supabase
+    and update local movie data
+    """
+    try:
+        # Call the Supabase Edge Function to fetch new movies
+        response = supabase.functions.invoke('fetch_new_movies', invoke_options={'body': {}})
+        
+        if response.get('status_code') == 200:
+            # Reload the movies data after successful fetch
+            global movies_df, tfidf_matrix, cosine_sim
+            movies_df = pd.read_csv('notebooks/movies_df.csv')
+            with open('notebooks/tfidf_matrix.pkl', 'rb') as f:
+                tfidf_matrix = pickle.load(f)
+            cosine_sim = cosine_similarity(tfidf_matrix, tfidf_matrix)
+            
+            return {
+                "success": True, 
+                "message": "Movies data updated successfully",
+                "total_movies": len(movies_df),
+                "function_response": response.get('data')
+            }
+        else:
+            return {
+                "success": False,
+                "message": "Failed to fetch new movies",
+                "error": response.get('error')
+            }
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating movies: {str(e)}")
+
 # To run: uvicorn fastapi_app:app --reload
